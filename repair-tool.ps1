@@ -148,10 +148,47 @@ while ($choice -ne 6) {
                     }
                     3 {
                         Write-Host "Mise à jour de toutes les applications..."
-                        $upgrades = winget upgrade --accept-package-agreements --accept-source-agreements
+                        Start-Sleep -Seconds 2
+                    
+                        # Sauvegarder le registre avec PowerShell
+                        $backupPath = Join-Path $env:USERPROFILE "RegistryBackup.reg"
+                        Get-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion" | ForEach-Object {
+                            $_.PSPath
+                        } | Export-RegFile -Path $backupPath
+                    
+                        # Créer le chemin du registre s'il n'existe pas
+                        $registryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\WindowsStore"
+                        if (-not (Test-Path $registryPath)) {
+                            New-Item -Path $registryPath -Force
+                        }
+                    
+                        # Définir l'option d'acceptation de l'EULA à true dans le registre
+                        Set-ItemProperty -Path $registryPath -Name "AcceptEULA" -Value "1"
+                    
+                        # Lancer une nouvelle fenêtre PowerShell avec la commande winget upgrade
+                        $process = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command winget upgrade --all --include-unknown" -PassThru -Wait
+                    
                         Write-Host "Mises à jour terminées. Vérification des échecs..."
-                        # Ajoutez ici le code pour vérifier les échecs de mise à jour si nécessaire
-                    }
+                        Start-Sleep -Seconds 2
+                    
+                        # Ajout du code pour vérifier les échecs de mise à jour
+                        $failedUpdates = winget upgrade --all --include-unknown | Where-Object { $_.Status -ne 'OK' }
+                    
+                        if ($failedUpdates.Count -eq 0) {
+                            Write-Host "Toutes les mises à jour ont été effectuées avec succès."
+                        } else {
+                            Write-Host "Certaines mises à jour ont échoué. Voici les détails :"
+                            Start-Sleep -Seconds 2
+                            $failedUpdates | ForEach-Object {
+                                Write-Host "Application: $($_.PackageFullName)"
+                                Write-Host "État: $($_.Status)"
+                                Write-Host "------------------------"
+                                Start-Sleep -Seconds 1
+                            }
+                        }
+                    
+                        Start-Sleep -Seconds 2
+                    }                                              
                     4 {
                         Write-Host "Retour au menu principal."
                     }
@@ -409,4 +446,4 @@ while ($choice -ne 6) {
             Write-Host "Choix invalide, veuillez sélectionner une option valide."
         }
     }
-}
+}s
